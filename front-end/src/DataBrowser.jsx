@@ -4,12 +4,12 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 
 const DataBrowser = (props) => {
-  const [datasets, setDatasets] = useState([]);
+  const [datasets, setDatasets] = useState({});
   const [datasetLinks, setDatasetLinks] = useState(<div />);
 
   // retrieve list of known datasets
   useEffect(() => {
-    if (datasets.length > 0) {
+    if (Object.keys(datasets).length > 0) {
       return
     }
 
@@ -23,15 +23,22 @@ const DataBrowser = (props) => {
 
   // render dataset list
   useEffect(() => {
-    if (datasets.length === 0) {
+    if (Object.keys(datasets).length === 0) {
       return
     }
 
     let links = [];
 
     for (const [uuid, pkg] of Object.entries(datasets)) {
-      //let id = pkg["eco"]["metadata"]["data"]["dataset"]["id"];
+      let node = Object.values(pkg["eco"]["nodes"]).slice(-1)[0];
+
       let title = pkg["eco"]["metadata"]["data"]["dataset"]["title"];
+
+      let level = node['metadata']['processing']
+
+      if (level !== undefined) {
+        title = `${title} (${level})`
+      }
 
       links.push(<li key={uuid}><Link to={"dataset/" + uuid}>{title}</Link></li>)
     }

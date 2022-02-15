@@ -2,7 +2,7 @@
 // Eco web UI
 //
 import React from 'react';
-import DataBrowser from "./Dataset/DataBrowser"
+import DataBrowser from "./DataBrowser"
 import DatasetViewer from "./Dataset/DatasetViewer"
 import { render } from "react-dom";
 import {

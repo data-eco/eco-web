@@ -33,7 +33,6 @@ with open('/conf/config.yml') as fp:
 # scan for data packages
 # - [ ] future: store matches in db and update periodically or on-the-fly?
 # - [ ] https://fastapi-utils.davidmontague.xyz/user-guide/repeated-tasks/?
-# root_dir needs a trailing slash (i.e. /root/dir/)
 
 # create dicts to store loaded datapackages and filepaths associated with each uuid
 pkgs = {}
