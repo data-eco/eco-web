@@ -1,0 +1,53 @@
+#
+# eco-web
+# kh
+#
+version: "3"
+
+services:
+  traefik:
+    image: traefik:latest
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+  api:
+    build:
+      context: api/
+      dockerfile: Dockerfile
+    command: "/start-reload.sh"
+    environment:
+      - PORT=5000
+    expose:
+      - 5000
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=Host(`api.localhost`)
+      - traefik.http.routers.api.entrypoints=web
+      - traefik.http.services.api.loadbalancer.server.port=5000
+    volumes:
+      - "${ECO_CONF_DIR}:/conf"
+      - "${ECO_DATA_DIR}:/data/"
+      - "./api:/app"
+  front-end:
+    build:
+      context: front-end/
+      dockerfile: Dockerfile
+    #command: "yarn start"
+    user: "node"
+    working_dir: /app
+    expose:
+      - 80 
+    command: "./node_modules/.bin/nodemon --inspect index.js 80"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.front-end.rule=Host(`localhost`)
+      - traefik.http.routers.front-end.entrypoints=web
+      - traefik.http.services.front-end.loadbalancer.server.port=80
+    volumes:
+      - "./front-end:/app"
