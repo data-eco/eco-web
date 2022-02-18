@@ -39,14 +39,15 @@ const DatasetViewer = (props) => {
     }
 
     // if no views found, stop here
-    if (pkg.eco.nodes[uuid].views.length === 0) {
+    let num_views = Object.keys(pkg.eco.nodes[uuid].views).length;
+
+    if (num_views === 0) {
       console.log("No views found!")
       return
     }
 
     // load view
     axios.get(`http://api.localhost/dataset/${uuid}/views/sample-pca`, {}).then(resp => {
-      console.log(resp.data)
       setViewData({"table": resp.data})
     }).catch(function (error) {
       console.log("Request failed!")
@@ -60,8 +61,9 @@ const DatasetViewer = (props) => {
       return
     }
 
-    // todo: fix metadata so that "views" is an array and not a single object
-    let spec = pkg.eco.nodes[uuid].views;
+    // retrieve first view;
+    // note: for now, assuming view is a sample pca plot
+    let spec = pkg.eco.nodes[uuid].views[0];
 
     spec.data = {"name": "table"};
     spec.width = 640;
@@ -77,7 +79,7 @@ const DatasetViewer = (props) => {
 
   // set graph data for datadag
   useEffect(() => {
-    if (pkg === undefined || graphData.nodes.length !== 0) {
+    if (pkg === undefined || Object.keys(graphData.nodes).length !== 0) {
       return
     }
 
@@ -88,10 +90,23 @@ const DatasetViewer = (props) => {
     }
 
     Object.keys(pkg.eco.nodes).forEach(nodeId => {
+
+      let node = pkg.eco.nodes[nodeId];
+
+      // temp work-around: check for both "name" and "processing" fields of node-level
+      // metadata
+      let node_name;
+
+      if ("processing" in node.metadata) {
+        node_name = node['metadata']['processing'];
+      } else if ("name" in node.metadata) {
+        node_name = node['metadata']['name'];
+      }
+
       dat.nodes.push({
         "id": nodeId,
-        "name": pkg.eco.nodes[nodeId]['action'],
-        "desc": pkg.eco.nodes[nodeId]['description']
+        "name": node_name,
+        "desc": node['description']
       })
     })
     dat.links = pkg.eco.edges;

@@ -34,12 +34,13 @@ with open('/conf/config.yml') as fp:
 # - [ ] future: store matches in db and update periodically or on-the-fly?
 # - [ ] https://fastapi-utils.davidmontague.xyz/user-guide/repeated-tasks/?
 
-# create dicts to store loaded datapackages and filepaths associated with each uuid
-pkgs = {}
-files = {}
+# create a dict to store loaded datapackages associated with each dataset;
+datasets = {}
 
-# testing; just return full datapackage json files for now.. later, can limit
-# to subset
+# create a dict to store directories associated with each datapackage.yaml, index by
+# uuid
+pkg_dirs = {}
+
 for path in cfg['data_dirs']:
     search_path = os.path.join(path, '**/datapackage.json')
 
@@ -48,19 +49,44 @@ for path in cfg['data_dirs']:
         with open(filename) as fp:
             pkg = json.load(fp)
 
-        #pkg_id = pkg['eco']['metadata']['data']['dataset']['id']
+        mdata = pkg["eco"]["metadata"]
+        dataset_id = mdata["data"]["dataset"]["id"]
 
-        if "uuid" in pkg["eco"]:
-            uuid = pkg['eco']['uuid']
-            pkgs[uuid] = pkg
-            files[uuid] = filename
-        else:
+        # if this is the first time encountering dataset, add entry in datasets dict
+        if dataset_id not in datasets:
+            datasets[dataset_id] = {
+                "metadata": mdata,
+                "packages": {},
+                "largest": {
+                    "uuid": "",
+                    "size": 0
+                }
+            }
+
+        # check for data packages with missing UUIDs
+        if "uuid" not in pkg["eco"]:
             print(f"Package missing UUID: {filename}")
+            continue
+
+        # add datapackage to dataset
+        uuid = pkg['eco']['uuid']
+        datasets[dataset_id]["packages"][uuid] = pkg
+        pkg_dirs[uuid] = os.path.dirname(filename)
+
+        # check to see if this is the further stage of processing (largest number of
+        # nodes in dag) encountered yet
+        num_nodes = len(pkg['eco']['nodes'])
+
+        if num_nodes > datasets[dataset_id]["largest"]["size"]:
+            datasets[dataset_id]["largest"] = {
+                "size": num_nodes,
+                "uuid": uuid
+            }
 
 @app.get("/datasets")
 async def get_datasets():
     """Returns information about available datasets?"""
-    return pkgs
+    return datasets
 
 @app.get("/stats")
 async def get_stats():
@@ -70,18 +96,25 @@ async def get_stats():
 @app.get("/dataset/{uuid}")
 async def get_dataset(uuid: str):
     """Retrieve information for a single dataset"""
-    if uuid not in pkgs:
-        return {"error": "invalid package id"}
-    
-    return pkgs[uuid]
+    for dataset in datasets:
+        if uuid in datasets[dataset]['packages']:
+            return datasets[dataset]['packages'][uuid]
+
+    return {"error": "invalid package id"}
+
 
 @app.get("/dataset/{uuid}/views/{view_name}")
 async def get_view(uuid: str, view_name: str):
     """Retrieve dataset view"""
-    if uuid not in pkgs:
-        return {"error": "invalid package id"}
+    pkg = None
 
-    pkg = pkgs[uuid]
+    # get datapackage
+    for dataset in datasets:
+        if uuid in datasets[dataset]['packages']:
+            pkg = datasets[dataset]['packages'][uuid]
+
+    if pkg is None:
+        return {"error": "invalid package id"}
 
     # get datadag node
     node = pkg['eco']['nodes'][uuid]
@@ -96,7 +129,7 @@ async def get_view(uuid: str, view_name: str):
         return {"error": "unable to find specified view"}
 
     # load view data (stored in separate file for now)
-    pkg_dir = os.path.dirname(files[uuid])
+    pkg_dir = pkg_dirs[uuid]
     infile = os.path.join(pkg_dir, matched_view['data'] + ".csv")
 
     dat = pd.read_csv(infile)
